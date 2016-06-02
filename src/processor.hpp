@@ -8,17 +8,17 @@ class Processor
 
 public:
 
-    Processor(Rules rules);
+	Processor(Rules rules);
 
-    void process();
+	void process();
 
 private:
 
-    Rules rules;
+	Rules rules;
 
-    void readComment();
+	void readComment();
 
-    void readMultilineComment();
+	void readMultilineComment();
 
 };
 
