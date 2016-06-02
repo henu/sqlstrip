@@ -16,6 +16,10 @@ private:
 
     Rules rules;
 
+    void readComment();
+
+    void readMultilineComment();
+
 };
 
 #endif
