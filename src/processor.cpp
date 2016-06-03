@@ -1,106 +1,115 @@
 #include "processor.hpp"
 
-#include <iostream>
+#include "utils.hpp"
+
 #include <cassert>
+#include <cstring>
+#include <iostream>
+#include <stdexcept>
 
 Processor::Processor(Rules rules) :
-rules(rules)
+rules(rules),
+read_buffer_left(0)
 {
+	read_buffer = new char[READ_BUFFER_SIZE];
+}
+
+Processor::~Processor()
+{
+	delete[] read_buffer;
 }
 
 void Processor::process()
 {
+	while (read_buffer_left > 0 || !std::cin.eof()) {
 
-	std::string input = "";
-
-	while (true) {
-
-		// Read byte and stop if end of stream is reached
-		int byte = std::cin.get();
-		if (std::cin.eof()) {
-			break;
+		fillReadBuffer();
+		if (read_buffer_left == 0) {
+			continue;
 		}
-		assert(byte >= 0 && byte < 256);
-
-		input += (char)byte;
 
 		// White space
-		if (input == " " || input == "\n" || input == "\t") {
-			std::cout << input;
-			input = "";
-
+		if (isWhitespace(read_buffer[0])) {
+			skipWhitespace();
 			continue;
 		}
 
 		// Comment
-		if (input == "--") {
-			std::cout << input;
-			input = "";
-
-			readComment();
-
+		if (read_buffer_left > 2 && strncmp(read_buffer, "--", 2) == 0) {
+			skipAndPrint(2);
+			skipAndPrintUntil("\n");
 			continue;
 		}
 
 		// Multi line comment
-		if (input == "/*") {
-			std::cout << input;
-			input = "";
-
-			readMultilineComment();
-
+		if (read_buffer_left > 2 && strncmp(read_buffer, "/*", 2) == 0) {
+			skipAndPrint(2);
+			skipAndPrintUntil("*/");
 			continue;
 		}
 
 		// Semicolon
-// TODO: Is there a problem if rogue semicolon is met?
-		if (input == ";") {
-			std::cout << input;
-			input = "";
-
+		if (read_buffer[0] == ';') {
+			skipAndPrint(1);
 			continue;
 		}
 
-	}
-
-}
-
-void Processor::readComment()
-{
-	// Skip until end of line is reached
-	while (true) {
-		int byte = std::cin.get();
-		if (std::cin.eof()) {
-			break;
-		}
-		assert(byte >= 0 && byte < 256);
-
-		std::cout << (char)byte;
-
-		if (byte == '\n') {
-			break;
-		}
+		throw std::runtime_error("Unable to process input \"" + std::string(read_buffer, std::min(40, read_buffer_left)) + "\"!");
 	}
 }
 
-void Processor::readMultilineComment()
+void Processor::fillReadBuffer()
 {
-	char previous_byte = 0;
+	std::cin.read(read_buffer + read_buffer_left, READ_BUFFER_SIZE - read_buffer_left);
+	read_buffer_left += std::cin.gcount();
+}
 
-	// Skip until end of comment is reached
-	while (true) {
-		int byte = std::cin.get();
-		if (std::cin.eof()) {
+void Processor::skipWhitespace()
+{
+	int whitespace_to_skip = 0;
+	while (whitespace_to_skip < read_buffer_left) {
+		if (!isWhitespace(read_buffer[whitespace_to_skip])) {
 			break;
 		}
-		assert(byte >= 0 && byte < 256);
+		++ whitespace_to_skip;
+	}
 
-		std::cout << (char)byte;
+	skipAndPrint(whitespace_to_skip);
+}
 
-		if (previous_byte == '*' && byte == '/') {
-			break;
+void Processor::skipAndPrint(int amount)
+{
+	assert(amount <= read_buffer_left);
+	std::cout.write(read_buffer, amount);
+	std::memmove(read_buffer, read_buffer + amount, read_buffer_left - amount);
+	read_buffer_left -= amount;
+}
+
+void Processor::skipAndPrintUntil(std::string const& pattern)
+{
+	bool pattern_found = false;
+	while (!pattern_found && !std::cin.eof()) {
+		// Fill buffer
+		if (read_buffer_left < pattern.size()) {
+			fillReadBuffer();
+			if (read_buffer_left < pattern.size()) {
+				assert(std::cin.eof());
+				skipAndPrint(read_buffer_left);
+				return;
+			}
 		}
 
-		previous_byte = byte;
+		// Check how much to skip
+		int skip_amount = 0;
+		while (skip_amount < read_buffer_left - pattern.size()) {
+			if (strncmp(read_buffer + skip_amount, pattern.c_str(), pattern.size()) == 0) {
+				pattern_found = true;
+				skip_amount += pattern.size();
+				break;
+			}
+			++ skip_amount;
+		}
+
+		skipAndPrint(skip_amount);
 	}
 }
