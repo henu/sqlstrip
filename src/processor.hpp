@@ -2,6 +2,9 @@
 #define __PROCESSOR_HPP__
 
 #include "rules.hpp"
+#include "types.hpp"
+
+#include <map>
 
 class Processor
 {
@@ -15,19 +18,34 @@ public:
 
 private:
 
+	typedef std::map<std::string, Strings> ColsOfTables;
+
 	Rules rules;
 
 	static int const READ_BUFFER_SIZE = 10000;
 	char* read_buffer;
-	int read_buffer_left;
+	unsigned int read_buffer_left;
 
 	void fillReadBuffer();
 
 	void skipWhitespace();
 
-	void skipAndPrint(int amount);
+	void skip(unsigned int amount);
 
-	void skipAndPrintUntil(std::string const& pattern);
+	void skipUntil(std::string const& pattern);
+
+	void skipWhitespaceCommentsAndFillBuffer();
+
+	std::string readName();
+
+	// Returns negative if end of file was met
+	int peekNextByte();
+
+	// Returns negative if end of file was met
+	int readNextByte();
+
+	// Returns true if at least one whitespace was found
+	bool readWhitespace();
 };
 
 #endif
