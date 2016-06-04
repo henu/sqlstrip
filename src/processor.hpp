@@ -44,8 +44,13 @@ private:
 	// Returns negative if end of file was met
 	int readNextByte();
 
+	// Returns negative if end of file was met
+	int readNextByteWithoutPrinting();
+
 	// Returns true if at least one whitespace was found
 	bool readWhitespace();
+
+	std::string readValueWithoutPrinting();
 };
 
 #endif

@@ -1,6 +1,8 @@
 #ifndef __RULES_HPP__
 #define __RULES_HPP__
 
+#include "types.hpp"
+
 #include <map>
 #include <string>
 
@@ -11,13 +13,24 @@ public:
 
 	Rules(int argc, char** argv);
 
-	std::string getRule(std::string table, std::string col) const;
+	void setTableColumnNames(std::string const& table, Strings const& cols);
+
+	std::string getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value) const;
 
 private:
 
-	typedef std::map<std::string, std::string> RulesMap;
+	typedef std::map<std::string, std::string> RulesByString;
+	typedef std::map<unsigned int, std::string> RulesByNumber;
 
-	RulesMap rules;
+	struct Table
+	{
+		RulesByString rules_by_names;
+		RulesByNumber rules_by_indexes;
+	};
+
+	typedef std::map<std::string, Table> Tables;
+
+	Tables tables;
 
 };
 

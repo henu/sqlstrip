@@ -23,7 +23,9 @@ Processor::~Processor()
 
 void Processor::process()
 {
-	Regexp re_create_table("^CREATE +TABLE ", REG_EXTENDED | REG_ICASE);
+	Regexp re_create_table("^CREATE +TABLE\\s", REG_EXTENDED | REG_ICASE);
+	Regexp re_insert_into("^INSERT +INTO\\s", REG_EXTENDED | REG_ICASE);
+	Regexp re_values("^VALUES\\s", REG_EXTENDED | REG_ICASE);
 	Regexp re_ignored("^(DROP|LOCK|UNLOCK) +TABLE", REG_EXTENDED | REG_ICASE);
 
 	ColsOfTables cols_of_tables;
@@ -129,7 +131,77 @@ void Processor::process()
 
 			skipUntil(";");
 
+			rules.setTableColumnNames(table_name, cols);
+
 			cols_of_tables[table_name] = cols;
+
+			continue;
+		}
+
+		// INSERT INTO statement
+		if (re_insert_into.match(read_buffer_str)) {
+			skip(re_insert_into.getMatchLength());
+
+			skipWhitespaceCommentsAndFillBuffer();
+
+			std::string table_name = readName();
+
+			skipWhitespaceCommentsAndFillBuffer();
+
+			read_buffer_str = std::string(read_buffer, read_buffer_left);
+			if (!re_values.match(read_buffer_str)) {
+				throw std::runtime_error("Expected \"VALUES\" was not found!");
+			}
+			skip(re_values.getMatchLength());
+
+			skipWhitespaceCommentsAndFillBuffer();
+
+			// Read inserting of values
+			while (true) {
+				if (readNextByte() != '(') {
+					throw std::runtime_error("Expected \"(\" was not found!");
+				}
+
+				skipWhitespaceCommentsAndFillBuffer();
+
+				if (peekNextByte() != ')') {
+					unsigned int col_i = 0;
+					while (true) {
+						std::string value = readValueWithoutPrinting();
+
+						// Let rules modify the value
+						value = rules.getModifiedValue(table_name, col_i, value);
+						std::cout << value;
+
+						skipWhitespaceCommentsAndFillBuffer();
+
+						int next_byte = readNextByte();
+						if (next_byte == ')' || next_byte < 0) {
+							break;
+						} else if (next_byte != ',') {
+							throw std::runtime_error("Expected \"(\" or \",\" was not found!");
+						}
+
+						skipWhitespaceCommentsAndFillBuffer();
+					}
+				} else {
+					// Skip ')'
+					readNextByte();
+				}
+
+
+				skipWhitespaceCommentsAndFillBuffer();
+
+				int comma_or_semicolon = readNextByte();
+				if (comma_or_semicolon != ',') {
+					if (comma_or_semicolon >= 0 && comma_or_semicolon != ';') {
+						throw std::runtime_error("Expected \";\" was not found!");
+					}
+					break;
+				}
+
+				skipWhitespaceCommentsAndFillBuffer();
+			}
 
 			continue;
 		}
@@ -290,4 +362,49 @@ int Processor::readNextByte()
 	skip(1);
 
 	return byte;
+}
+
+int Processor::readNextByteWithoutPrinting()
+{
+	while (read_buffer_left == 0) {
+		fillReadBuffer();
+		if (read_buffer_left == 0 && std::cin.eof()) {
+			return -1;
+		}
+	}
+
+	int byte = read_buffer[0];
+
+	assert(read_buffer_left > 0);
+	std::memmove(read_buffer, read_buffer + 1, read_buffer_left - 1);
+	-- read_buffer_left;
+
+	return byte;
+}
+
+std::string Processor::readValueWithoutPrinting()
+{
+	std::string value;
+
+	int next_byte = peekNextByte();
+
+	// If number
+	if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.') {
+		value += readNextByteWithoutPrinting();
+
+		while (true) {
+			next_byte = peekNextByte();
+
+			if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.') {
+				value += readNextByteWithoutPrinting();
+				continue;
+			}
+
+			break;
+		}
+
+		return value;
+	}
+
+	throw std::runtime_error("Unable to parse value!");
 }
