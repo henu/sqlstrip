@@ -93,7 +93,9 @@ void Processor::process()
 				// Make sure this is a column
 				std::string col_name_upper = uppercase(col_name);
 				if (col_name_upper != "PRIMARY" &&
-				    col_name_upper != "UNIQUE") {
+				    col_name_upper != "UNIQUE" &&
+				    col_name_upper != "KEY" &&
+				    col_name_upper != "CONSTRAINT") {
 					cols.push_back(col_name);
 				}
 
@@ -113,7 +115,7 @@ void Processor::process()
 					} else if (byte == ')') {
 						-- open_brackets;
 						assert(open_brackets >= 0);
-					} else if (byte == ',') {
+					} else if (byte == ',' && open_brackets == 0) {
 						break;
 					}
 				}
