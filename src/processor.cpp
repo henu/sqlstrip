@@ -179,6 +179,8 @@ void Processor::process()
 						}
 
 						skipWhitespaceCommentsAndFillBuffer();
+
+						++ col_i;
 					}
 				} else {
 					// Skip ')'
@@ -353,7 +355,7 @@ int Processor::peekNextByte()
 		}
 	}
 
-	return read_buffer[0];
+	return (unsigned char)read_buffer[0];
 }
 
 int Processor::readNextByte()
@@ -368,7 +370,7 @@ int Processor::readNextByte()
 	int byte = read_buffer[0];
 	skip(1);
 
-	return byte;
+	return (unsigned char)byte;
 }
 
 int Processor::readNextByteWithoutPrinting()
@@ -386,7 +388,7 @@ int Processor::readNextByteWithoutPrinting()
 	std::memmove(read_buffer, read_buffer + 1, read_buffer_left - 1);
 	-- read_buffer_left;
 
-	return byte;
+	return (unsigned char)byte;
 }
 
 std::string Processor::readValueWithoutPrinting()
