@@ -238,7 +238,7 @@ void Processor::skip(unsigned int amount)
 void Processor::skipUntil(std::string const& pattern)
 {
 	bool pattern_found = false;
-	while (!pattern_found && !std::cin.eof()) {
+	while (!pattern_found) {
 		// Fill buffer
 		if (read_buffer_left < pattern.size()) {
 			fillReadBuffer();
@@ -251,7 +251,7 @@ void Processor::skipUntil(std::string const& pattern)
 
 		// Check how much to skip
 		unsigned int skip_amount = 0;
-		while (skip_amount < read_buffer_left - pattern.size()) {
+		while (skip_amount <= read_buffer_left - pattern.size()) {
 			if (strncmp(read_buffer + skip_amount, pattern.c_str(), pattern.size()) == 0) {
 				pattern_found = true;
 				skip_amount += pattern.size();
