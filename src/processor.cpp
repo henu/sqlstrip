@@ -414,6 +414,34 @@ std::string Processor::readValueWithoutPrinting()
 
 		return value;
 	}
+	// If string
+	else if (next_byte == '"' || next_byte == '\'') {
+		value += readNextByteWithoutPrinting();
+
+		char quote_type = next_byte;
+
+		while (true) {
+			int byte = readNextByteWithoutPrinting();
+
+			if (byte < 0) {
+				throw std::runtime_error("String value is missing the closing quote character!\n\n" + value + "]");
+			}
+
+			value += (char)byte;
+
+			if (byte == quote_type) {
+				break;
+			} else if (byte == '\\') {
+				int byte2 = readNextByteWithoutPrinting();
+				if (byte2 < 0) {
+					throw std::runtime_error("String value is missing the closing quote character!");
+				}
+				value += (char)byte2;
+			}
+		}
+
+		return value;
+	}
 
 	throw std::runtime_error("Unable to parse value!");
 }
