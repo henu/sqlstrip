@@ -28,8 +28,6 @@ void Processor::process()
 	Regexp re_values("^VALUES\\s", REG_EXTENDED | REG_ICASE);
 	Regexp re_ignored("^(DROP|LOCK|UNLOCK) +TABLE", REG_EXTENDED | REG_ICASE);
 
-	ColsOfTables cols_of_tables;
-
 	while (read_buffer_left > 0 || !std::cin.eof()) {
 
 		fillReadBuffer();
@@ -128,8 +126,6 @@ void Processor::process()
 			skipUntil(";");
 
 			rules.setTableColumnNames(table_name, cols);
-
-			cols_of_tables[table_name] = cols;
 
 			continue;
 		}

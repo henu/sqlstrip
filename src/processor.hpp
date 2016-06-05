@@ -4,8 +4,6 @@
 #include "rules.hpp"
 #include "types.hpp"
 
-#include <map>
-
 class Processor
 {
 
@@ -17,8 +15,6 @@ public:
 	void process();
 
 private:
-
-	typedef std::map<std::string, Strings> ColsOfTables;
 
 	Rules rules;
 
