@@ -93,11 +93,7 @@ void Processor::process()
 				std::string col_name = readName();
 
 				// Make sure this is a column
-				std::string col_name_upper = uppercase(col_name);
-				if (col_name_upper != "PRIMARY" &&
-				    col_name_upper != "UNIQUE" &&
-				    col_name_upper != "KEY" &&
-				    col_name_upper != "CONSTRAINT") {
+				if (!col_name.empty()) {
 					cols.push_back(col_name);
 				}
 
@@ -332,6 +328,17 @@ std::string Processor::readName()
 		}
 
 		name += (char)byte;
+	}
+
+	// Make sure the name is not reserved
+	if (!quote_char) {
+		std::string name_upper = uppercase(name);
+		if (name_upper == "PRIMARY" ||
+		    name_upper == "UNIQUE" ||
+		    name_upper == "KEY" ||
+		    name_upper == "CONSTRAINT") {
+			return "";
+		}
 	}
 
 	return name;
