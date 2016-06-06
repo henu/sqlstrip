@@ -1,6 +1,7 @@
 #ifndef __RULES_HPP__
 #define __RULES_HPP__
 
+#include "regexp.hpp"
 #include "types.hpp"
 
 #include <map>
@@ -15,7 +16,7 @@ public:
 
 	void setTableColumnNames(std::string const& table, Strings const& cols);
 
-	std::string getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value) const;
+	std::string getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value);
 
 private:
 
@@ -29,6 +30,9 @@ private:
 	};
 
 	typedef std::map<std::string, Table> Tables;
+
+	Regexp re_random_string;
+	Regexp re_num_arg;
 
 	Tables tables;
 

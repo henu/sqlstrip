@@ -1,9 +1,15 @@
 #include "rules.hpp"
 
-#include <stdexcept>
 #include <cstddef>
+#include <cstdlib>
+#include <stdexcept>
 
-Rules::Rules(int argc, char** argv)
+char const* RANDOM_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+unsigned int RANDOM_CHARS_LEN = strlen(RANDOM_CHARS);
+
+Rules::Rules(int argc, char** argv) :
+re_random_string("^random_string\\([0-9]+\\)$", REG_EXTENDED),
+re_num_arg("\\([0-9]+\\)", REG_EXTENDED)
 {
 	for (int arg_i = 1; arg_i < argc; ++ arg_i) {
 		std::string arg = argv[arg_i];
@@ -15,7 +21,7 @@ Rules::Rules(int argc, char** argv)
 		std::string table_and_col = arg.substr(0, eq_pos);
 		std::string rule = arg.substr(eq_pos+1);
 
-		if (rule != "empty_string") {
+		if (rule != "empty_string" && !re_random_string.match(rule)) {
 			throw std::runtime_error("Unknown rule \"" + rule + "\"!");
 		}
 
@@ -47,7 +53,7 @@ void Rules::setTableColumnNames(std::string const& table_name, Strings const& co
 	}
 }
 
-std::string Rules::getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value) const
+std::string Rules::getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value)
 {
 	Tables::const_iterator tables_find = tables.find(table_name);
 	if (tables_find == tables.end()) {
@@ -63,6 +69,19 @@ std::string Rules::getModifiedValue(std::string const& table_name, unsigned int 
 
 	if (rule == "empty_string") {
 		return "''";
+	}
+
+	if (re_random_string.match(rule)) {
+		re_num_arg.match(rule);
+		std::string num_str = rule.substr(re_num_arg.getMatchOffset() + 1, re_num_arg.getMatchLength() - 2);
+		int num = std::atoi(num_str.c_str());
+		std::string result = "'";
+		for (int i = 0; i < num; ++ i) {
+			int r = rand() % RANDOM_CHARS_LEN;
+			result += RANDOM_CHARS[r];
+		}
+		result += "'";
+		return result;
 	}
 
 	throw std::runtime_error("Unknown rule \"" + rule + "\"!");
