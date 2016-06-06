@@ -11,12 +11,37 @@ class Regexp
 
 public:
 
-	inline Regexp(std::string const& re, int flags = 0) :
+	inline Regexp(std::string const& pattern, int flags = 0) :
+	pattern(pattern),
+	flags(flags),
 	match_ofs(-1),
 	match_len(-1)
 	{
-		if (regcomp(&this->re, re.c_str(), flags)) {
-			throw std::runtime_error("Invalid regular expression \"" + re + "\"!");
+		if (regcomp(&this->re, pattern.c_str(), flags)) {
+			throw std::runtime_error("Invalid regular expression \"" + pattern + "\"!");
+		}
+	}
+
+	inline Regexp(Regexp const& re) :
+	pattern(re.pattern),
+	flags(re.flags),
+	match_ofs(re.match_ofs),
+	match_len(re.match_len)
+	{
+		if (regcomp(&this->re, re.pattern.c_str(), re.flags)) {
+			throw std::runtime_error("Invalid regular expression \"" + pattern + "\"!");
+		}
+	}
+
+	inline Regexp& operator=(Regexp const& re)
+	{
+		regfree(&this->re);
+		pattern = re.pattern;
+		flags = re.flags;
+		match_ofs = re.match_ofs;
+		match_len = re.match_len;
+		if (regcomp(&this->re, re.pattern.c_str(), re.flags)) {
+			throw std::runtime_error("Invalid regular expression \"" + pattern + "\"!");
 		}
 	}
 
@@ -67,11 +92,13 @@ public:
 
 private:
 
+	std::string pattern;
+	int flags;
+
 	regex_t re;
 
 	int match_ofs;
 	int match_len;
-
 };
 
 #endif
