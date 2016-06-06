@@ -335,6 +335,10 @@ std::string Processor::readValueWithoutPrinting()
 
 		return value;
 	}
+	// If null
+	else if (uppercase(buf.peek(4)) == "NULL") {
+		return buf.getWithoutPrinting(4);
+	}
 
 	throw std::runtime_error("Unable to parse value!");
 }

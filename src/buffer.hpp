@@ -56,10 +56,10 @@ public:
 		}
 
 		if (read_buffer_left < length) {
-			return std::string(read_buffer, read_buffer_left);
+			return std::string(read_buffer + read_buffer_ofs, read_buffer_left);
 		}
 
-		return std::string(read_buffer, length);
+		return std::string(read_buffer + read_buffer_ofs, length);
 	}
 
 	inline std::string peekFull()
@@ -106,6 +106,22 @@ public:
 		char result = read_buffer[read_buffer_ofs];
 		++ read_buffer_ofs;
 		-- read_buffer_left;
+
+		return result;
+	}
+
+	inline std::string getWithoutPrinting(unsigned int length)
+	{
+		if (read_buffer_left < length) {
+			fillBuffer();
+			if (read_buffer_left < length) {
+				throw std::runtime_error("No bytes left!");
+			}
+		}
+
+		std::string result(read_buffer + read_buffer_ofs, length);
+		read_buffer_ofs += length;
+		read_buffer_left -= length;
 
 		return result;
 	}
