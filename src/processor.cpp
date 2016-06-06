@@ -10,15 +10,8 @@
 #include <stdexcept>
 
 Processor::Processor(Rules rules) :
-rules(rules),
-read_buffer_left(0)
+rules(rules)
 {
-	read_buffer = new char[READ_BUFFER_SIZE];
-}
-
-Processor::~Processor()
-{
-	delete[] read_buffer;
 }
 
 void Processor::process()
@@ -28,50 +21,44 @@ void Processor::process()
 	Regexp re_values("^VALUES\\s", REG_EXTENDED | REG_ICASE);
 	Regexp re_ignored("^(DROP|LOCK|UNLOCK) +TABLE", REG_EXTENDED | REG_ICASE);
 
-	while (read_buffer_left > 0 || !std::cin.eof()) {
-
-		fillReadBuffer();
-		if (read_buffer_left == 0) {
-			continue;
-		}
+	while (!buf.eof()) {
 
 		// White space
-		if (isWhitespace(read_buffer[0])) {
+		if (isWhitespace(buf.peek())) {
 			skipWhitespace();
 			continue;
 		}
 
 		// Comment
-		if (read_buffer_left > 2 && strncmp(read_buffer, "--", 2) == 0) {
-			skip(2);
+		if (buf.isNext("--")) {
+			buf.skip(2);
 			skipUntil("\n");
 			continue;
 		}
 
 		// Multi line comment
-		if (read_buffer_left > 2 && strncmp(read_buffer, "/*", 2) == 0) {
-			skip(2);
+		if (buf.isNext("/*")) {
+			buf.skip(2);
 			skipUntil("*/");
 			continue;
 		}
 
 		// Semicolon
-		if (read_buffer[0] == ';') {
-			skip(1);
+		if (buf.peek() == ';') {
+			buf.skip();
 			continue;
 		}
 
-		std::string read_buffer_str(read_buffer, read_buffer_left);
-
 		// Ignored statement
-		if (re_ignored.match(read_buffer_str)) {
+		if (re_ignored.match(buf)) {
+			buf.skip(re_ignored.getMatchLength());
 			skipUntil(";");
 			continue;
 		}
 
 		// CREATE TABLE statement
-		if (re_create_table.match(read_buffer_str)) {
-			skip(re_create_table.getMatchLength());
+		if (re_create_table.match(buf)) {
+			buf.skip(re_create_table.getMatchLength());
 
 			skipWhitespaceCommentsAndFillBuffer();
 
@@ -79,7 +66,7 @@ void Processor::process()
 
 			skipWhitespaceCommentsAndFillBuffer();
 
-			if (readNextByte() != '(') {
+			if (buf.eof() || buf.get() != '(') {
 				throw std::runtime_error("Expected \"(\" was not found!");
 			}
 
@@ -87,7 +74,7 @@ void Processor::process()
 
 			// Read names of columns
 			Strings cols;
-			while (peekNextByte() >= 0 && peekNextByte() != ')') {
+			while (!buf.eof() && buf.peek() != ')') {
 				std::string col_name = readName();
 
 				// Make sure this is a column
@@ -98,19 +85,18 @@ void Processor::process()
 				// Skip all the details
 				int open_brackets = 0;
 				while (true) {
-					int next_byte = peekNextByte();
-					if (next_byte < 0 || (next_byte == ')' && open_brackets == 0)) {
+					if (buf.eof() || (buf.peek() == ')' && open_brackets == 0)) {
 						break;
 					}
 
-// TODO: Optimize!
-					int byte = readNextByte();
-					assert(byte >= 0);
+					char byte = buf.get();
 					if (byte == '(') {
 						++ open_brackets;
 					} else if (byte == ')') {
+						if (open_brackets == 0) {
+							throw std::runtime_error("Unexpected closing bracket!");
+						}
 						-- open_brackets;
-						assert(open_brackets >= 0);
 					} else if (byte == ',' && open_brackets == 0) {
 						break;
 					}
@@ -119,7 +105,7 @@ void Processor::process()
 				skipWhitespaceCommentsAndFillBuffer();
 			}
 
-			if (readNextByte() != ')') {
+			if (buf.eof() || buf.get() != ')') {
 				throw std::runtime_error("Expected \")\" was not found!");
 			}
 
@@ -131,8 +117,8 @@ void Processor::process()
 		}
 
 		// INSERT INTO statement
-		if (re_insert_into.match(read_buffer_str)) {
-			skip(re_insert_into.getMatchLength());
+		if (re_insert_into.match(buf)) {
+			buf.skip(re_insert_into.getMatchLength());
 
 			skipWhitespaceCommentsAndFillBuffer();
 
@@ -140,23 +126,22 @@ void Processor::process()
 
 			skipWhitespaceCommentsAndFillBuffer();
 
-			read_buffer_str = std::string(read_buffer, read_buffer_left);
-			if (!re_values.match(read_buffer_str)) {
+			if (!re_values.match(buf)) {
 				throw std::runtime_error("Expected \"VALUES\" was not found!");
 			}
-			skip(re_values.getMatchLength());
+			buf.skip(re_values.getMatchLength());
 
 			skipWhitespaceCommentsAndFillBuffer();
 
 			// Read inserting of values
 			while (true) {
-				if (readNextByte() != '(') {
+				if (buf.eof() || buf.get() != '(') {
 					throw std::runtime_error("Expected \"(\" was not found!");
 				}
 
 				skipWhitespaceCommentsAndFillBuffer();
 
-				if (peekNextByte() != ')') {
+				if (buf.eof() || buf.peek() != ')') {
 					unsigned int col_i = 0;
 					while (true) {
 						std::string value = readValueWithoutPrinting();
@@ -167,8 +152,11 @@ void Processor::process()
 
 						skipWhitespaceCommentsAndFillBuffer();
 
-						int next_byte = readNextByte();
-						if (next_byte == ')' || next_byte < 0) {
+						if (buf.eof()) {
+							break;
+						}
+						char next_byte = buf.get();
+						if (next_byte == ')') {
 							break;
 						} else if (next_byte != ',') {
 							throw std::runtime_error("Expected \"(\" or \",\" was not found!");
@@ -180,15 +168,17 @@ void Processor::process()
 					}
 				} else {
 					// Skip ')'
-					readNextByte();
+					buf.skip();
 				}
-
 
 				skipWhitespaceCommentsAndFillBuffer();
 
-				int comma_or_semicolon = readNextByte();
+				if (buf.eof()) {
+					break;
+				}
+				char comma_or_semicolon = buf.get();
 				if (comma_or_semicolon != ',') {
-					if (comma_or_semicolon >= 0 && comma_or_semicolon != ';') {
+					if (comma_or_semicolon != ';') {
 						throw std::runtime_error("Expected \";\" was not found!");
 					}
 					break;
@@ -200,93 +190,48 @@ void Processor::process()
 			continue;
 		}
 
-		throw std::runtime_error("Unable to process input \"" + std::string(read_buffer, std::min<unsigned int>(40, read_buffer_left)) + "\"!");
+		throw std::runtime_error("Unable to process input \"" + buf.peek(40) + "\"!");
 	}
-}
-
-void Processor::fillReadBuffer()
-{
-	std::cin.read(read_buffer + read_buffer_left, READ_BUFFER_SIZE - read_buffer_left);
-	read_buffer_left += std::cin.gcount();
 }
 
 void Processor::skipWhitespace()
 {
-	unsigned int whitespace_to_skip = 0;
-	while (whitespace_to_skip < read_buffer_left) {
-		if (!isWhitespace(read_buffer[whitespace_to_skip])) {
-			break;
-		}
-		++ whitespace_to_skip;
+	while (!buf.eof() && isWhitespace(buf.peek())) {
+		buf.get();
 	}
-
-	skip(whitespace_to_skip);
-}
-
-void Processor::skip(unsigned int amount)
-{
-	assert(amount <= read_buffer_left);
-	std::cout.write(read_buffer, amount);
-	std::memmove(read_buffer, read_buffer + amount, read_buffer_left - amount);
-	read_buffer_left -= amount;
 }
 
 void Processor::skipUntil(std::string const& pattern)
 {
-	bool pattern_found = false;
-	while (!pattern_found) {
-		// Fill buffer
-		if (read_buffer_left < pattern.size()) {
-			fillReadBuffer();
-			if (read_buffer_left < pattern.size()) {
-				assert(std::cin.eof());
-				skip(read_buffer_left);
-				return;
-			}
+	while (!buf.eof()) {
+		if (buf.isNext(pattern)) {
+			buf.skip(pattern.size());
+			return;
 		}
-
-		// Check how much to skip
-		unsigned int skip_amount = 0;
-		while (skip_amount <= read_buffer_left - pattern.size()) {
-			if (strncmp(read_buffer + skip_amount, pattern.c_str(), pattern.size()) == 0) {
-				pattern_found = true;
-				skip_amount += pattern.size();
-				break;
-			}
-			++ skip_amount;
-		}
-
-		skip(skip_amount);
+		buf.skip();
 	}
 }
 
 void Processor::skipWhitespaceCommentsAndFillBuffer()
 {
-	fillReadBuffer();
-
-	while (read_buffer_left > 0 || !std::cin.eof()) {
-
-		fillReadBuffer();
-		if (read_buffer_left == 0) {
-			continue;
-		}
+	while (!buf.eof()) {
 
 		// White space
-		if (isWhitespace(read_buffer[0])) {
+		if (isWhitespace(buf.peek())) {
 			skipWhitespace();
 			continue;
 		}
 
 		// Comment
-		if (read_buffer_left > 2 && strncmp(read_buffer, "--", 2) == 0) {
-			skip(2);
+		if (buf.isNext("--")) {
+			buf.skip(2);
 			skipUntil("\n");
 			continue;
 		}
 
 		// Multi line comment
-		if (read_buffer_left > 2 && strncmp(read_buffer, "/*", 2) == 0) {
-			skip(2);
+		if (buf.isNext("/*")) {
+			buf.skip(2);
 			skipUntil("*/");
 			continue;
 		}
@@ -302,17 +247,16 @@ std::string Processor::readName()
 
 	// Check if there is quote char
 	char quote_char = 0;
-	int next_byte = peekNextByte();
-	if (next_byte == '`') {
-		quote_char = next_byte;
-		skip(1);
+	if (!buf.eof() && buf.peek() == '`') {
+		quote_char = buf.peek();
+		buf.skip();
 	}
 
-	while (true) {
-		next_byte = peekNextByte();
+	while (!buf.eof()) {
+		char next_byte = buf.peek();
 
 		if (quote_char && next_byte == quote_char) {
-			skip(1);
+			buf.skip();
 			break;
 		}
 
@@ -320,12 +264,7 @@ std::string Processor::readName()
 			break;
 		}
 
-		int byte = readNextByte();
-		if (byte < 0) {
-			break;
-		}
-
-		name += (char)byte;
+		name += buf.get();
 	}
 
 	// Make sure the name is not reserved
@@ -342,66 +281,25 @@ std::string Processor::readName()
 	return name;
 }
 
-int Processor::peekNextByte()
-{
-	while (read_buffer_left == 0) {
-		fillReadBuffer();
-		if (read_buffer_left == 0 && std::cin.eof()) {
-			return -1;
-		}
-	}
-
-	return (unsigned char)read_buffer[0];
-}
-
-int Processor::readNextByte()
-{
-	while (read_buffer_left == 0) {
-		fillReadBuffer();
-		if (read_buffer_left == 0 && std::cin.eof()) {
-			return -1;
-		}
-	}
-
-	int byte = read_buffer[0];
-	skip(1);
-
-	return (unsigned char)byte;
-}
-
-int Processor::readNextByteWithoutPrinting()
-{
-	while (read_buffer_left == 0) {
-		fillReadBuffer();
-		if (read_buffer_left == 0 && std::cin.eof()) {
-			return -1;
-		}
-	}
-
-	int byte = read_buffer[0];
-
-	assert(read_buffer_left > 0);
-	std::memmove(read_buffer, read_buffer + 1, read_buffer_left - 1);
-	-- read_buffer_left;
-
-	return (unsigned char)byte;
-}
-
 std::string Processor::readValueWithoutPrinting()
 {
 	std::string value;
 
-	int next_byte = peekNextByte();
+	if (buf.eof()) {
+		return "";
+	}
+
+	char next_byte = buf.peek();
 
 	// If number
 	if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.') {
-		value += readNextByteWithoutPrinting();
+		value += buf.getWithoutPrinting();
 
-		while (true) {
-			next_byte = peekNextByte();
+		while (!buf.eof()) {
+			next_byte = buf.peek();
 
 			if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.') {
-				value += readNextByteWithoutPrinting();
+				value += buf.getWithoutPrinting();
 				continue;
 			}
 
@@ -412,27 +310,26 @@ std::string Processor::readValueWithoutPrinting()
 	}
 	// If string
 	else if (next_byte == '"' || next_byte == '\'') {
-		value += readNextByteWithoutPrinting();
+		value += buf.getWithoutPrinting();
 
 		char quote_type = next_byte;
 
 		while (true) {
-			int byte = readNextByteWithoutPrinting();
-
-			if (byte < 0) {
-				throw std::runtime_error("String value is missing the closing quote character!\n\n" + value + "]");
+			if (buf.eof()) {
+				throw std::runtime_error("String value is missing the closing quote character!");
 			}
 
-			value += (char)byte;
+			char byte = buf.getWithoutPrinting();
+
+			value += byte;
 
 			if (byte == quote_type) {
 				break;
 			} else if (byte == '\\') {
-				int byte2 = readNextByteWithoutPrinting();
-				if (byte2 < 0) {
+				if (buf.eof()) {
 					throw std::runtime_error("String value is missing the closing quote character!");
 				}
-				value += (char)byte2;
+				value += buf.getWithoutPrinting();
 			}
 		}
 

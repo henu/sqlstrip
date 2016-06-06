@@ -1,10 +1,11 @@
 #ifndef __REGEXP_HPP__
 #define __REGEXP_HPP__
 
+#include "buffer.hpp"
+
 #include <regex.h> 
 #include <stdexcept>
 
-#include <cassert> // DEBUG
 class Regexp
 {
 
@@ -41,6 +42,11 @@ public:
 		}
 
 		throw std::runtime_error("Unable to check matching of regular expression!");
+	}
+
+	inline bool match(Buffer& buf)
+	{
+		return match(buf.peekFull());
 	}
 
 	inline int getMatchOffset() const
