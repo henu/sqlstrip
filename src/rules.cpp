@@ -21,18 +21,26 @@ re_num_arg("\\([0-9]+\\)", REG_EXTENDED)
 		std::string table_and_col = arg.substr(0, eq_pos);
 		std::string rule = arg.substr(eq_pos+1);
 
-		if (rule != "empty_string" && !re_random_string.match(rule)) {
+		if (rule != "empty_string" && rule != "delete" && !re_random_string.match(rule)) {
 			throw std::runtime_error("Unknown rule \"" + rule + "\"!");
 		}
 
 		int dot_pos = table_and_col.find('.');
-		if (dot_pos < 0) {
-			throw std::runtime_error("Invalid table and column definition \"" + table_and_col + "\"!");
+		if (dot_pos >= 0) {
+			if (rule == "delete") {
+				throw std::runtime_error("Invalid column rule \"" + rule + "\"!");
+			}
+			std::string table = table_and_col.substr(0, dot_pos);
+			std::string col = table_and_col.substr(dot_pos+1);
+			tables[table].rules_by_names[col] = rule;
+		} else {
+			if (rule == "delete") {
+				tables[table_and_col].delete_all_rows = true;
+			} else {
+				throw std::runtime_error("Invalid table rule \"" + rule + "\"!");
+			}
 		}
-		std::string table = table_and_col.substr(0, dot_pos);
-		std::string col = table_and_col.substr(dot_pos+1);
 
-		tables[table].rules_by_names[col] = rule;
 	}
 }
 
@@ -85,4 +93,14 @@ std::string Rules::getModifiedValue(std::string const& table_name, unsigned int 
 	}
 
 	throw std::runtime_error("Unknown rule \"" + rule + "\"!");
+}
+
+bool Rules::getDeleteAllRows(std::string const& table_name) const
+{
+	Tables::const_iterator tables_find = tables.find(table_name);
+	if (tables_find == tables.end()) {
+		return false;
+	}
+
+	return tables_find->second.delete_all_rows;
 }

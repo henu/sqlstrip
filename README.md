@@ -15,13 +15,16 @@ Building
 Usage
 =====
 
-```mysqldump -uroot -p some_database | sqlstrip users.realname=random_string(8) users.another_sensitive_column=empty_string```
+```mysqldump -uroot -p some_database | sqlstrip users.realname=random_string(8) users.another_sensitive_column=empty_string usermessages=delete```
 
 
 Rules
 =====
 
-There are currently two rules available:
+There are currently the following rules available:
 
-* empty_string: Converts value to empty string.
-* random_string(length): Converts value to random string with specific length. a-z, A-Z and 0-9 will be used when selecting characters.
+* For columns:
+  * empty_string: Converts value to empty string.
+  * random_string(length): Converts value to random string with specific length. a-z, A-Z and 0-9 will be used when selecting characters.
+* For tables:
+  * delete: Deletes all rows from table.

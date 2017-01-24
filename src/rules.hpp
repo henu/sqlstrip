@@ -18,6 +18,8 @@ public:
 
 	std::string getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value);
 
+	bool getDeleteAllRows(std::string const& table_name) const;
+
 private:
 
 	typedef std::map<std::string, std::string> RulesByString;
@@ -27,6 +29,9 @@ private:
 	{
 		RulesByString rules_by_names;
 		RulesByNumber rules_by_indexes;
+		bool delete_all_rows;
+
+		inline Table() : delete_all_rows(false) {}
 	};
 
 	typedef std::map<std::string, Table> Tables;

@@ -20,13 +20,17 @@ private:
 
 	Buffer buf;
 
-	void skipWhitespace();
+	// If target is null, then print to std::cout
+	void skipWhitespace(std::string* target = NULL);
 
-	void skipUntil(std::string const& pattern);
+	// If target is null, then print to std::cout
+	void skipUntil(std::string const& pattern, std::string* target = NULL);
 
-	void skipWhitespaceCommentsAndFillBuffer();
+	// If target is null, then print to std::cout
+	void skipWhitespaceCommentsAndFillBuffer(std::string* target = NULL);
 
-	std::string readName();
+	// If target is null, then print to std::cout
+	std::string readName(std::string* target = NULL);
 
 	std::string readValueWithoutPrinting();
 };

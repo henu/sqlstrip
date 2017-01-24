@@ -118,28 +118,35 @@ void Processor::process()
 
 		// INSERT INTO statement
 		if (re_insert_into.match(buf)) {
-			buf.skip(re_insert_into.getMatchLength());
+			std::string insert_into_statement = buf.getWithoutPrinting(re_insert_into.getMatchLength());
 
-			skipWhitespaceCommentsAndFillBuffer();
+			skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
-			std::string table_name = readName();
+			std::string table_name = readName(&insert_into_statement);
 
-			skipWhitespaceCommentsAndFillBuffer();
+			bool delete_all_rows = rules.getDeleteAllRows(table_name);
+
+			skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
 			if (!re_values.match(buf)) {
 				throw std::runtime_error("Expected \"VALUES\" was not found!");
 			}
-			buf.skip(re_values.getMatchLength());
+			insert_into_statement += buf.getWithoutPrinting(re_values.getMatchLength());
 
-			skipWhitespaceCommentsAndFillBuffer();
+			skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
 			// Read inserting of values
 			while (true) {
-				if (buf.eof() || buf.get() != '(') {
+				if (buf.eof()) {
+					throw std::runtime_error("Expected \"(\" was not found!");
+				}
+				char c = buf.getWithoutPrinting();
+				insert_into_statement += c;
+				if (c != '(') {
 					throw std::runtime_error("Expected \"(\" was not found!");
 				}
 
-				skipWhitespaceCommentsAndFillBuffer();
+				skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
 				if (buf.eof() || buf.peek() != ')') {
 					unsigned int col_i = 0;
@@ -147,36 +154,40 @@ void Processor::process()
 						std::string value = readValueWithoutPrinting();
 
 						// Let rules modify the value
-						value = rules.getModifiedValue(table_name, col_i, value);
-						std::cout << value;
+						if (!delete_all_rows) {
+							value = rules.getModifiedValue(table_name, col_i, value);
+						}
+						insert_into_statement += value;
 
-						skipWhitespaceCommentsAndFillBuffer();
+						skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
 						if (buf.eof()) {
 							break;
 						}
-						char next_byte = buf.get();
+						char next_byte = buf.getWithoutPrinting();
+						insert_into_statement += next_byte;
 						if (next_byte == ')') {
 							break;
 						} else if (next_byte != ',') {
 							throw std::runtime_error("Expected \"(\" or \",\" was not found!");
 						}
 
-						skipWhitespaceCommentsAndFillBuffer();
+						skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
 						++ col_i;
 					}
 				} else {
 					// Skip ')'
-					buf.skip();
+					insert_into_statement += buf.getWithoutPrinting();
 				}
 
-				skipWhitespaceCommentsAndFillBuffer();
+				skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
 
 				if (buf.eof()) {
 					break;
 				}
-				char comma_or_semicolon = buf.get();
+				char comma_or_semicolon = buf.getWithoutPrinting();
+				insert_into_statement += comma_or_semicolon;
 				if (comma_or_semicolon != ',') {
 					if (comma_or_semicolon != ';') {
 						throw std::runtime_error("Expected \";\" was not found!");
@@ -184,7 +195,11 @@ void Processor::process()
 					break;
 				}
 
-				skipWhitespaceCommentsAndFillBuffer();
+				skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
+			}
+
+			if (!delete_all_rows) {
+				std::cout << insert_into_statement;
 			}
 
 			continue;
@@ -194,45 +209,65 @@ void Processor::process()
 	}
 }
 
-void Processor::skipWhitespace()
+void Processor::skipWhitespace(std::string* target)
 {
 	while (!buf.eof() && isWhitespace(buf.peek())) {
-		buf.get();
+		if (target) {
+			target += buf.getWithoutPrinting();
+		} else {
+			buf.get();
+		}
 	}
 }
 
-void Processor::skipUntil(std::string const& pattern)
+void Processor::skipUntil(std::string const& pattern, std::string* target)
 {
 	while (!buf.eof()) {
 		if (buf.isNext(pattern)) {
-			buf.skip(pattern.size());
+			if (target) {
+				*target += buf.getWithoutPrinting(pattern.size());
+			} else {
+				buf.skip(pattern.size());
+			}
 			return;
 		}
-		buf.skip();
+		if (target) {
+			*target += buf.getWithoutPrinting();
+		} else {
+			buf.skip();
+		}
 	}
 }
 
-void Processor::skipWhitespaceCommentsAndFillBuffer()
+void Processor::skipWhitespaceCommentsAndFillBuffer(std::string* target)
 {
 	while (!buf.eof()) {
 
 		// White space
 		if (isWhitespace(buf.peek())) {
-			skipWhitespace();
+			skipWhitespace(target);
 			continue;
 		}
 
 		// Comment
 		if (buf.isNext("--")) {
-			buf.skip(2);
-			skipUntil("\n");
+			if (target) {
+				*target += buf.getWithoutPrinting(2);
+			} else {
+				buf.skip(2);
+			}
+			skipUntil("\n", target);
 			continue;
 		}
 
 		// Multi line comment
 		if (buf.isNext("/*")) {
-			buf.skip(2);
-			skipUntil("*/");
+			if (target) {
+				*target += buf.getWithoutPrinting(2);
+			} else {
+				buf.skip(2);
+			}
+			skipUntil("*/", target);
 			continue;
 		}
 
@@ -241,7 +276,7 @@ void Processor::skipWhitespaceCommentsAndFillBuffer()
 	}
 }
 
-std::string Processor::readName()
+std::string Processor::readName(std::string* target)
 {
 	std::string name = "";
 
@@ -249,14 +284,22 @@ std::string Processor::readName()
 	char quote_char = 0;
 	if (!buf.eof() && buf.peek() == '`') {
 		quote_char = buf.peek();
-		buf.skip();
+		if (target) {
+			*target += buf.getWithoutPrinting();
+		} else {
+			buf.skip();
+		}
 	}
 
 	while (!buf.eof()) {
 		char next_byte = buf.peek();
 
 		if (quote_char && next_byte == quote_char) {
-			buf.skip();
+			if (target) {
+				*target += buf.getWithoutPrinting();
+			} else {
+				buf.skip();
+			}
 			break;
 		}
 
@@ -264,7 +307,13 @@ std::string Processor::readName()
 			break;
 		}
 
-		name += buf.get();
+		if (target) {
+			char c = buf.getWithoutPrinting();
+			name += c;
+			*target += c;
+		} else {
+			name += buf.get();
+		}
 	}
 
 	// Make sure the name is not reserved
