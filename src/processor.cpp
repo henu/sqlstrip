@@ -147,6 +147,8 @@ void Processor::process()
 				}
 
 				skipWhitespaceCommentsAndFillBuffer(&insert_into_statement);
+// TODO: Fill this container with sane values!
+Equation::Variables vars;
 
 				if (buf.eof() || buf.peek() != ')') {
 					unsigned int col_i = 0;
@@ -155,7 +157,7 @@ void Processor::process()
 
 						// Let rules modify the value
 						if (!delete_all_rows) {
-							value = rules.getModifiedValue(table_name, col_i, value);
+							value = rules.getModifiedValue(table_name, col_i, value, vars);
 						}
 						insert_into_statement += value;
 
@@ -341,13 +343,28 @@ std::string Processor::readValueWithoutPrinting()
 	char next_byte = buf.peek();
 
 	// If number
-	if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.') {
+	if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.' || next_byte == '-') {
+		bool dot_found = (next_byte == '.');
+		bool exponent_found = false;
+		bool allow_minus_or_plus = false;
 		value += buf.getWithoutPrinting();
 
 		while (!buf.eof()) {
 			next_byte = buf.peek();
 
-			if ((next_byte >= '0' && next_byte <= '9') || next_byte == '.') {
+			if ((next_byte >= '0' && next_byte <= '9') ||
+			    (next_byte == '.' && !dot_found) ||
+			    (next_byte == 'e' && !exponent_found) ||
+			    ((next_byte == '-' || next_byte == '+') && allow_minus_or_plus)) {
+				if (next_byte == '.') {
+					dot_found = true;
+					allow_minus_or_plus = false;
+				} else if (next_byte == 'e') {
+					exponent_found = true;
+					allow_minus_or_plus = true;
+				} else {
+					allow_minus_or_plus = false;
+				}
 				value += buf.getWithoutPrinting();
 				continue;
 			}

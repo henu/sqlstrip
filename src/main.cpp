@@ -6,6 +6,8 @@
 
 int main(int argc, char** argv)
 {
+	srand(time(NULL));
+
 	Rules rules(argc, argv);
 
 	Processor processor(rules);

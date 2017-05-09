@@ -3,6 +3,7 @@
 
 #include "regexp.hpp"
 #include "types.hpp"
+#include "equation.hpp"
 
 #include <map>
 #include <string>
@@ -16,14 +17,14 @@ public:
 
 	void setTableColumnNames(std::string const& table, Strings const& cols);
 
-	std::string getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value);
+	std::string getModifiedValue(std::string const& table_name, unsigned int col_index, std::string const& value, Equation::Variables const& vars);
 
 	bool getDeleteAllRows(std::string const& table_name) const;
 
 private:
 
-	typedef std::map<std::string, std::string> RulesByString;
-	typedef std::map<unsigned int, std::string> RulesByNumber;
+	typedef std::map<std::string, Equation> RulesByString;
+	typedef std::map<unsigned int, Equation> RulesByNumber;
 
 	struct Table
 	{
@@ -36,8 +37,7 @@ private:
 
 	typedef std::map<std::string, Table> Tables;
 
-	Regexp re_random_string;
-	Regexp re_num_arg;
+	Regexp re_delete;
 
 	Tables tables;
 
