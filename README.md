@@ -15,16 +15,33 @@ Building
 Usage
 =====
 
-```mysqldump -uroot -p some_database | sqlstrip users.realname=random_string(8) users.another_sensitive_column=empty_string usermessages=delete```
+The tool is based on simple code you can run to columns you choose.
+
+Here is a simple example:
+
+```mysqldump -uroot -p some_database | sqlstrip users.realname=random_string(8) users.email=random_email() usermessages=delete()```
 
 
-Rules
-=====
+Primitive types
+===============
 
-There are currently the following rules available:
+Primitive types that are supported:
 
-* For columns:
-  * empty_string: Converts value to empty string.
-  * random_string(length): Converts value to random string with specific length. a-z, A-Z and 0-9 will be used when selecting characters.
-* For tables:
-  * delete: Deletes all rows from table.
+- NULL
+- numbers
+- "strings"
+
+
+Functions
+=========
+
+Here is a list of functions:
+
+- delete() This is the only function is for whole tables. Use it to ignore content of tables.
+- decimals(number, decimals)
+- if(condition, value_if_true, value_if_false)
+- random_number(min, max)
+- random_string(min_len, max_len)
+- random_words(min_words, max_words)
+- random_email()
+- random_phonenumber()
